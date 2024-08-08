@@ -47,7 +47,9 @@
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.initrd.kernelModules = [ "amdgpu" "ehci_pci" "usbcore" "uas" "libcomposite" "xhci_pci" "thunderbolt" "nvme" "usbhid" "usb_storage" "sd_mod" "sdhci_pci" "uhci_hcd" "virtio_pci" "sdhci_pci" ];
   boot.kernelModules =  [ "wireguard" "kvm-amd" ];
+  boot.blacklistedKernelModules = [ "bluetooth" "btusb" ];
   boot.kernel.sysctl = {
     "net.ipv4.ip_forward" = true;
     "net.ipv6.ip_forward" = true;
@@ -56,9 +58,37 @@
   # Add kernel parameters like iommu
   boot.kernelParams = [
     "quiet"
+    "amd_pstate=guided"
     "iommu_pt"
     #usbcore.blinkenlights=1
   ];
+  
+  # Disable Bluetooth
+  hardware.bluetooth = {
+    enable = false;
+    powerOnBoot = false;
+  };
+  # AMD GPU
+  hardware.graphics.extraPackages = with pkgs; [
+    # VA-API and VDPAU
+    vaapiVdpau
+
+    # AMD ROCm OpenCL runtime
+    rocmPackages.clr
+    rocmPackages.clr.icd
+
+    # AMDVLK drivers can be used in addition to the Mesa RADV drivers.
+    #amdvlk
+  ];
+  hardware.graphics.extraPackages32 = with pkgs; [
+    driversi686Linux.amdvlk
+  ];
+
+  # Most software has the HIP libraries hard-coded. Workaround:
+  systemd.tmpfiles.rules = [
+    "L+    /opt/rocm/hip   -    -    -     -    ${pkgs.rocmPackages.clr}"
+  ];
+
   # Use the latest kernel available
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
@@ -163,6 +193,17 @@
   services.gvfs.enable = true;
   services.udisks2.enable = true; 
 
+  # Add iOS support
+  services.usbmuxd = {
+    enable = true;
+    package = pkgs.usbmuxd2;
+  };
+
+  # ffmpeg package for transcoding
+  # services.go2rtc.settings.ffmpeg.bin = {
+  #   path = "${lib.getBin pkgs.ffmpeg-full}/bin/ffmpeg";
+  # };
+
   # Add Flatpak support
   services.flatpak.enable = true;
    xdg.portal.enable = true;
@@ -217,6 +258,7 @@
   environment.plasma6.excludePackages = with pkgs.kdePackages; [
     gwenview
     partitionmanager
+    kio-fuse
   ];
 
 
@@ -297,7 +339,15 @@
   #services.xserver.displayManager.autoLogin.user = "kixadmin";
 
   # Install firefox.
-  programs.firefox.enable = true;
+  programs.firefox = {
+    enable = true;
+    languagePacks = [ "he" ];
+    nativeMessagingHosts.packages = [ 
+      # pkgs.plasma-browser-integration 
+      # pkgs.ff2mpv 
+    ];
+  };
+
 
   # programs.nixvim.enable = true;
   # Make sure NeoVim is the default environment editor
@@ -307,6 +357,10 @@
     EDITOR = "lvim";
     SYSTEMD_EDITOR = "lvim";
     VISUAL = "lvim";
+    # VAAPI and VDPAU config for accelerated video.
+    # See https://wiki.archlinux.org/index.php/Hardware_video_acceleration
+    "VDPAU_DRIVER" = "radeonsi";
+    "LIBVA_DRIVER_NAME" = "radeonsi";
     };
   };
   # Allow unfree packages
@@ -318,7 +372,7 @@
     rr="cd /home/kixadmin/.dotfiles && sudo nixos-rebuild switch --flake /home/kixadmin/.dotfiles && cd -";
     qq="sudo vim /home/kixadmin/.dotfiles/configuration.nix && sudo nix-env --delete-generations 7d";
     nu="nix flake update && sudo nixos-rebuild switch --flake .";
-    ng="nix-collect-garage -d";
+    ng="nix-collect-garbage -d && sudo nix-env --delete-generations --profile /nix/var/nix/profiles/system 2d";
     gs="git status";
     yt="yt-dlp -f 140";
     n="pnpm";
@@ -334,15 +388,21 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-    #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+    neovim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
     # (vivaldi.override {
     #   proprietaryCodecs = true;
     #   enableWidevine = false;
     # })
+    libimobiledevice
+    ifuse
+    libva-utils
     nmap
+    unzip
     pnpm
     yt-dlp
+    vivaldi-ffmpeg-codecs
     ffmpeg
+    (opera.override { proprietaryCodecs = true; })
     dig
     fastfetch
     linssid
@@ -366,6 +426,7 @@
     wireguard-tools
     qbittorrent
     mpv
+    nodePackages_latest.nodejs
     telegram-desktop
     discord-screenaudio
     zoom-us

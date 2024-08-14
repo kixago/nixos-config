@@ -8,36 +8,20 @@
   inputs,
   ...
 }:
-
-# with lib;
-# let
-  # piaInterface = config.services.pia-vpn.interface;
-
-  # processTorrent = pkgs.writeScript "process-torrent" ''
-  #   #!${pkgs.stdenv.shell}
-  #   cd "$TR_TORRENT_DIR"
-  #   if [ -d "$TR_TORRENT_NAME" ]; then
-  #     cd "$TR_TORRENT_NAME"
-  #     for dir in $(find . -name '*.rar' -exec dirname {} \; | sort -u); do
-  #       pushd $dir; ${pkgs.unrar}/bin/unrar x *.rar; popd
-  #     done
-  #   in
-  # '';
-
-  # startTransmission = pkgs.writeScript "start-transmission" ''
-  #   #!${pkgs.stdenv.shell}
-  #   IP=$(${pkgs.iproute2}/bin/ip -j addr show dev ${piaInterface} | ${pkgs.jq}/bin/jq -r '.[0].addr_info | map(select(.family == "inet"))[0].local')
-  #   ${pkgs.transmission}/bin/transmission-daemon -f \
-  #     -g "${config.services.transmission.home}/.config/transmission-daemon" \
-  #     --bind-address-ipv4 $IP
-  # '';
-
-# in
+let
+  cleanupUndoFiles = pkgs.writeShellScriptBin "cleanup-undo-files" ''
+    #!/usr/bin/env bash
+    UNDO_DIR="$HOME/.config/nvim/undo"
+    DAYS=30
+    find "$UNDO_DIR" -type f -mtime +$DAYS -delete
+  ''; # Bash script to clean up NixVim undo files
+in
 {
   imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
   ];
+
   nix.nixPath = [
     "nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos"
     "nixos-config=${config.users.users.kixadmin.home}/.dotfiles/configuration.nix"
@@ -347,20 +331,33 @@
       # pkgs.ff2mpv 
     ];
   };
+  ######################
+  #                    #
+  # Install NerdFonts  #
+  #                    #
+  ######################
 
+  fonts = {
+    fontDir.enable = true;
+    packages =  with pkgs; [
+      (nerdfonts.override { fonts = [ "FiraCode" ]; })
+      texlivePackages.hebrew-fonts
+    ];
 
-  # programs.nixvim.enable = true;
+  };
+
   # Make sure NeoVim is the default environment editor
   environment = {
     shells = [ pkgs.bash ];
+  localBinInPath = true;
     variables = {
-    EDITOR = "lvim";
-    SYSTEMD_EDITOR = "lvim";
-    VISUAL = "lvim";
-    # VAAPI and VDPAU config for accelerated video.
-    # See https://wiki.archlinux.org/index.php/Hardware_video_acceleration
-    "VDPAU_DRIVER" = "radeonsi";
-    "LIBVA_DRIVER_NAME" = "radeonsi";
+      EDITOR = "nvim";
+      SYSTEMD_EDITOR = "nvim";
+      VISUAL = "nvim";
+      # VAAPI and VDPAU config for accelerated video.
+      # See https://wiki.archlinux.org/index.php/Hardware_video_acceleration
+      "VDPAU_DRIVER" = "radeonsi";
+      "LIBVA_DRIVER_NAME" = "radeonsi";
     };
   };
   # Allow unfree packages
@@ -368,39 +365,51 @@
 
 
   #environment.interactiveShellInit = ''
-  programs.bash.shellAliases = {
-    rr="cd /home/kixadmin/.dotfiles && sudo nixos-rebuild switch --flake /home/kixadmin/.dotfiles && cd -";
-    qq="sudo vim /home/kixadmin/.dotfiles/configuration.nix && sudo nix-env --delete-generations 7d";
-    nu="nix flake update && sudo nixos-rebuild switch --flake .";
-    ng="nix-collect-garbage -d && sudo nix-env --delete-generations --profile /nix/var/nix/profiles/system 2d";
-    gs="git status";
-    yt="yt-dlp -f 140";
-    n="pnpm";
-    v="lvim";
-    vim="lvim";
-    vi="lvim";
-    sudo="sudo ";
-    ls="ls --color=tty";
-    l="ls -alh --color=tty";
-    getPiaPort="journalctl -u pia-vpn-portforward.service -n 10";
+  programs.bash = {
+      shellAliases = {
+      rr="cd /home/kixadmin/.dotfiles && sudo nixos-rebuild switch --flake /home/kixadmin/.dotfiles && cd -";
+      qq="sudo vim /home/kixadmin/.dotfiles/configuration.nix";
+      ff="nvim /home/kixadmin/.dotfiles/flake.nix";
+      nu="nix flake update && sudo nixos-rebuild switch --flake .";
+      ng="sudo nix-env --delete-generations --profile /nix/var/nix/profiles/system 3d";
+      nd="sudo nix-collect-garbage --delete-older-than 3d";
+      gs="git status";
+      yt="yt-dlp -f 140";
+      v="nvim";
+      vim="nvim";
+      vi="nvim";
+      sudo="sudo ";
+      ls="ls --color=tty";
+      l="ls -alh --color=tty";
+        getPiaPort="journalctl -u pia-vpn-portforward.service -n 10";
+    };
+    promptInit = '' PS1="\[\e[32m\][\u@\h:\w]\$\[\e[0m\] " '';
   };
+
+  # Environment Session Variables
+
+  environment.sessionVariables = {
+    FLAKE = "/home/kixadmin/.dotfiles";
+  };
+
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
+
   environment.systemPackages = with pkgs; [
-    neovim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-    # (vivaldi.override {
-    #   proprietaryCodecs = true;
-    #   enableWidevine = false;
-    # })
+   # neovim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+    (nodejs.override {
+      enableNpm = false;
+    })
+    cleanupUndoFiles
+    pnpm
+    nh
     libimobiledevice
     ifuse
     libva-utils
     nmap
     unzip
-    pnpm
     yt-dlp
-    vivaldi-ffmpeg-codecs
     ffmpeg
     (opera.override { proprietaryCodecs = true; })
     dig
@@ -414,19 +423,14 @@
     black
     google-java-format
     prettierd
-    lazygit
-    tree-sitter
-    wl-clipboard
     ripgrep
     fd
-    lunarvim
     rustfmt
     stylua
     jq
     wireguard-tools
     qbittorrent
     mpv
-    nodePackages_latest.nodejs
     telegram-desktop
     discord-screenaudio
     zoom-us
@@ -439,14 +443,11 @@
     sshfs
     btop
     quickgui
-   # vivaldi
-    vivaldi-ffmpeg-codecs
     arduino-ide
     podman-compose
     podman-desktop
     distrobox
     audacity
-    inputs.Neve.packages.${pkgs.system}.default
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -569,7 +570,28 @@ programs.traceroute.enable = true;
         	
     };
   };
+   # incus !
+#  systemd.services.override.incus = {
+#  After = "network-online.target";
+#};
 
+  # Define the systemd service and timer to cleanup NixVim undo files.
+  systemd.services.cleanupUndoFiles = {
+    description = "Cleanup Neovim undo files older than 5 days";
+    serviceConfig = {
+      ExecStart = "${cleanupUndoFiles}";
+      Type = "oneshot";
+    };
+  };
+
+  systemd.timers.cleanupUndoFilesTimer = {
+    description = "Run cleanup of Neovim undo files daily";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "daily";
+      Persistent = true;
+    };
+  };
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions

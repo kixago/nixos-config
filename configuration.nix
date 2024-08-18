@@ -56,6 +56,8 @@ in
   hardware.graphics.extraPackages = with pkgs; [
     # VA-API and VDPAU
     vaapiVdpau
+    libva
+    libvdpau-va-gl
 
     # AMD ROCm OpenCL runtime
     rocmPackages.clr
@@ -240,8 +242,8 @@ in
   services.displayManager.sddm.wayland.enable = true;
   services.desktopManager.plasma6.enable = true;
   environment.plasma6.excludePackages = with pkgs.kdePackages; [
-    gwenview
     partitionmanager
+    gwenview
     kio-fuse
   ];
 
@@ -254,8 +256,20 @@ in
     };
   };
 
-  # Stop sudo from asking for passwords
-  security.sudo.wheelNeedsPassword = false;
+  security = {
+    sudo.wheelNeedsPassword = false; # Stop sudo from asking for passwords
+      # polkit = {
+      #enable = true;
+      #  extraConfig = ''
+      #    polkit.addRule(function(action, subject) {
+    #      if (subject.isInGroup("wheel")) {
+    #        return polkit.Result.YES;
+    #      }
+    #    });
+    #  '';
+    #};
+  };
+  
 
   # Enable CUPS to print documents.
 
@@ -330,6 +344,12 @@ in
       # pkgs.plasma-browser-integration 
       # pkgs.ff2mpv 
     ];
+    autoConfig = ''
+      // Add your custom CSS here
+      *|*:any-link {
+        text-decoration: none !important;
+      }
+    '';
   };
   ######################
   #                    #
@@ -378,18 +398,23 @@ in
       v="nvim";
       vim="nvim";
       vi="nvim";
+      npm="yarn";
       sudo="sudo ";
       ls="ls --color=tty";
       l="ls -alh --color=tty";
         getPiaPort="journalctl -u pia-vpn-portforward.service -n 10";
     };
-    promptInit = '' PS1="\[\e[32m\][\u@\h:\w]\$\[\e[0m\] " '';
+    promptInit = '' PS1="\[\e[32m\][\u@\h:\w]\$\[\e[0m\] " ''; # Changes the command prompt to a more normal setting.
   };
 
   # Environment Session Variables
 
   environment.sessionVariables = {
     FLAKE = "/home/kixadmin/.dotfiles";
+    MOZ_ENABLE_WAYLAND = "1";
+  };
+  environment.variables = {
+    QT_PLUGIN_PATH = "${pkgs.qt6.qtwayland}/lib/qt6/plugins";
   };
 
 
@@ -398,19 +423,20 @@ in
 
   environment.systemPackages = with pkgs; [
    # neovim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-    (nodejs.override {
-      enableNpm = false;
-    })
+    vscode
+    python311Packages.cryptography
+    nodePackages_latest.nodejs # Recent version of NodeJS
+    nodePackages.typescript-language-server
+    corepack_latest #Corepack for NodeJS
     cleanupUndoFiles
-    pnpm
+    gparted
+    ffmpeg-full
     nh
     libimobiledevice
     ifuse
-    libva-utils
     nmap
     unzip
     yt-dlp
-    ffmpeg
     (opera.override { proprietaryCodecs = true; })
     dig
     fastfetch
@@ -425,7 +451,6 @@ in
     prettierd
     ripgrep
     fd
-    rustfmt
     stylua
     jq
     wireguard-tools
@@ -593,6 +618,31 @@ programs.traceroute.enable = true;
     };
   };
 
+  # nixpkgs.overlays = [
+  #   (self: super: {
+  #     python312Packages = super.python312Packages // {
+  #       cryptography = super.python312Packages.buildPythonPackage rec {
+  #         pname = "cryptography";
+  #         version = "42.0.8"; # Specify the desired version here
+  #
+  #         src = super.fetchPypi {
+  #           inherit pname version;
+  #           sha256 = "fa76fbb7596cc5839320000cdd5d0955313696d9511debab7ee7278fc8b5c84a"; # Use the correct SHA256 hash for this version
+  #         };
+  #
+  #         # Add any necessary build inputs or phases
+  #         buildInputs = [ ];
+  #
+  #         meta = with super.lib; {
+  #           description = "A package designed to expose cryptographic recipes and primitives to Python developers";
+  #           license = licenses.asl20;
+  #         };
+  #       };
+  #     };
+  #   })
+  # ];
+
+  #
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
   # on your system were taken. It‘s perfectly fine and recommended to leave

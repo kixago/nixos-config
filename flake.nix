@@ -1,33 +1,37 @@
 {
     description = "Powerhouse Flake For NixOS.";
-
     inputs = {
       # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-      # nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";  # This defaults to the master branch
-      nixpkgs.url = "path:/home/kixadmin/.dotfiles/patches/nixpkgs";
-      flake-utils.url = "github:numtide/flake-utils";
-      nixvim = {
-        url = "github:nix-community/nixvim";
+      nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";  # This defaults to the master branch
+        # nixpkgs.url = "path:/home/kixadmin/.dotfiles/patches/nixpkgs";
+        flake-utils.url = "github:numtide/flake-utils";
+        nixvim = {
+          url = "github:nix-community/nixvim";
+          inputs.nixpkgs.follows = "nixpkgs";
+      };
+      nil = {
+        url = "github:oxalica/nil";
         inputs.nixpkgs.follows = "nixpkgs";
+      };
+      crypto-overlay = {
+        url = "path:/home/kixadmin/.dotfiles/patches/crypto-overlay";
+        inputs.nixpkgs.follows = "nixpkgs";
+      };
     };
-    nil = {
-      url = "github:oxalica/nil";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-  };
-    outputs = { self, nixpkgs, flake-utils, nixvim, nil, ... } @ inputs: let
-    systemNix = "x86_64-linux";
+  outputs = { self, nixpkgs, crypto-overlay, flake-utils, nixvim, nil, ... } @ inputs: let
+    lib = nixpkgs.lib;
+    system = "x86_64-linux";
     pkgs = import nixpkgs {
-      inherit systemNix;
-      overlays = [ ];
-   };
+      inherit system;
+      overlays = [ (import ./patches/crypto-overlay/default.nix { inherit nixpkgs system; }) ];
+    };
    in {
+      # config.allowUnfree = true;
       nixosConfigurations.powerhouse = nixpkgs.lib.nixosSystem {
-        system = systemNix;
         specialArgs = { inherit inputs; };
         modules = [
           ./configuration.nix
-          self.nixosModules.services.pia-vpn
+        self.nixosModules.services.pia-vpn
         nixvim.nixosModules.nixvim {
             programs.nixvim = {
               enable = true;

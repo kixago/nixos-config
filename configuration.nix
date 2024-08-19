@@ -15,6 +15,7 @@ let
     DAYS=30
     find "$UNDO_DIR" -type f -mtime +$DAYS -delete
   ''; # Bash script to clean up NixVim undo files
+
 in
 {
   imports = [
@@ -399,7 +400,7 @@ in
       vim="nvim";
       vi="nvim";
       npm="yarn";
-      sudo="sudo ";
+      sudo="sudo -E ";
       ls="ls --color=tty";
       l="ls -alh --color=tty";
         getPiaPort="journalctl -u pia-vpn-portforward.service -n 10";
@@ -423,10 +424,7 @@ in
 
   environment.systemPackages = with pkgs; [
    # neovim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-    vscode
-    python311Packages.cryptography
     nodePackages_latest.nodejs # Recent version of NodeJS
-    nodePackages.typescript-language-server
     corepack_latest #Corepack for NodeJS
     cleanupUndoFiles
     gparted
@@ -467,7 +465,7 @@ in
     remmina
     sshfs
     btop
-    quickgui
+    #quickgui
     arduino-ide
     podman-compose
     podman-desktop
@@ -525,8 +523,16 @@ programs.traceroute.enable = true;
   networking.nftables.enable = true; # mandatory for incus in NixOS 
   virtualisation.incus = {
     enable = true;
+    # package = pkgs.incus;
     package = pkgs.incus;
-    ui.enable = true;
+    #   src = pkgs.fetchFromGitHub {
+    #     owner = "lxc";
+    #     repo = "incus";
+    #     rev = "6.4.0";
+    #     sha256 = "sha256-fWc+qUAFlqMuiDhZzEY99rXHjKq40GPzplSN8ggId9g=";
+    #   };
+    # };
+    # ui.enable = true;
     # preseed est un service systemd: systemctl status incus-preseed.service
     preseed = {
      # this is configuration of the incusd server side: 
@@ -618,30 +624,30 @@ programs.traceroute.enable = true;
     };
   };
 
-  # nixpkgs.overlays = [
-  #   (self: super: {
-  #     python312Packages = super.python312Packages // {
-  #       cryptography = super.python312Packages.buildPythonPackage rec {
-  #         pname = "cryptography";
-  #         version = "42.0.8"; # Specify the desired version here
-  #
-  #         src = super.fetchPypi {
-  #           inherit pname version;
-  #           sha256 = "fa76fbb7596cc5839320000cdd5d0955313696d9511debab7ee7278fc8b5c84a"; # Use the correct SHA256 hash for this version
-  #         };
-  #
-  #         # Add any necessary build inputs or phases
-  #         buildInputs = [ ];
-  #
-  #         meta = with super.lib; {
-  #           description = "A package designed to expose cryptographic recipes and primitives to Python developers";
-  #           license = licenses.asl20;
-  #         };
-  #       };
-  #     };
-  #   })
-  # ];
-
+ #  nixpkgs.overlays = [
+ #    (self: super: {
+ #      python312Packages = super.python312Packages // {
+ #        cryptography = super.python312Packages.buildPythonPackage rec {
+ #          pname = "cryptography";
+ #          version = "14.2.1"; # Specify the desired version here
+ # 
+ #         src = super.fetchPypi {
+ #           inherit pname version;
+ #           sha256 = "fa76fbb7596cc5839320000cdd5d0955313696d9511debab7ee7278fc8b5c84a"; # Use the correct SHA256 hash for this version
+ #         };
+ #
+ #         # Add any necessary build inputs or phases
+ #         buildInputs = [ ];
+ #  
+ #           meta = with super.lib; {
+ #             description = "A package designed to expose cryptographic recipes and primitives to Python developers";
+ #             license = licenses.asl20;
+ #           };
+ #         };
+ #       };
+ #     })
+ #   ];
+ #
   #
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions

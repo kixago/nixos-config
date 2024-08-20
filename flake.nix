@@ -1,8 +1,8 @@
 {
     description = "Powerhouse Flake For NixOS.";
     inputs = {
-      # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-      nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";  # This defaults to the master branch
+      nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+      # nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";  # This defaults to the master branch
         # nixpkgs.url = "path:/home/kixadmin/.dotfiles/patches/nixpkgs";
         flake-utils.url = "github:numtide/flake-utils";
         nixvim = {
@@ -13,17 +13,17 @@
         url = "github:oxalica/nil";
         inputs.nixpkgs.follows = "nixpkgs";
       };
-      crypto-overlay = {
-        url = "path:/home/kixadmin/.dotfiles/patches/crypto-overlay";
-        inputs.nixpkgs.follows = "nixpkgs";
-      };
+      # crypto-overlay = {
+      #   url = "path:/home/kixadmin/.dotfiles/patches/crypto-overlay";
+      #   inputs.nixpkgs.follows = "nixpkgs";
+      # };
     };
-  outputs = { self, nixpkgs, crypto-overlay, flake-utils, nixvim, nil, ... } @ inputs: let
+  outputs = { self, nixpkgs, flake-utils, nixvim, nil, ... } @ inputs: let
     lib = nixpkgs.lib;
     system = "x86_64-linux";
     pkgs = import nixpkgs {
       inherit system;
-      overlays = [ (import ./patches/crypto-overlay/default.nix { inherit nixpkgs system; }) ];
+      # overlays = [ (import ./patches/crypto-overlay/default.nix { inherit nixpkgs system; }) ];
     };
    in {
       # config.allowUnfree = true;
@@ -629,7 +629,17 @@
               };
               cmp-nvim-lsp.enable = true;
               lsp.servers = {
-                nil-ls.enable = true;
+                nil-ls = {
+                  enable = true;
+                    settings = {
+                      formatting = {
+                      providers = {
+                        javascript = "prettier";
+                        typescript = "prettier";
+                      };
+                    };
+                  };
+                };
                 pyright.enable = true;
                 tailwindcss.enable = true;
                 tsserver.enable = true;

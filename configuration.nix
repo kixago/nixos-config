@@ -13,7 +13,9 @@ let
     #!/usr/bin/env bash
     UNDO_DIR="/home/kixadmin/.config/nixvim/undo"
     DAYS=30
+   if [ -d "$UNDO_DIR" ] && [ "$(ls -A $UNDO_DIR)" ]; then
     find "$UNDO_DIR" -type f -mtime +$DAYS -delete
+  fi
   ''; # Bash script to clean up NixVim undo files
 
 in
@@ -24,7 +26,7 @@ in
   ];
 
   nix.nixPath = [
-    # "nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos"
+    "nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos"
     "nixos-config=${config.users.users.kixadmin.home}/.dotfiles/configuration.nix"
     "/nix/var/nix/profiles/per-user/root"
     # "/nix/var/nix/profiles/per-user/root/channels"
@@ -34,12 +36,12 @@ in
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
   boot.plymouth = {
-    enable = false;
+    enable = true;
     theme = "breeze";
   };
-  boot.initrd.kernelModules = [ "amdgpu" "ehci_pci" "usbcore" "uas" "libcomposite" "xhci_pci" "thunderbolt" "nvme" "usbhid" "usb_storage" "sd_mod" "sdhci_pci" "uhci_hcd" "virtio_pci" "sdhci_pci" ];
+  boot.initrd.kernelModules = [ "amdgpu" "ehci_pci" "usbcore" "uas" "libcomposite" "xhci_pci" "thunderbolt" "nvme" "usbhid" "usb_storage" "sd_mod" "sdhci_pci" "uhci_hcd" "virtio_pci" ];
   boot.kernelModules =  [ "wireguard" "kvm-amd" ];
-  boot.blacklistedKernelModules = [ "bluetooth" "btusb" ];
+  boot.blacklistedKernelModules = [ "bluetooth" "btusb" "mt7921e" ];
   boot.kernel.sysctl = {
     "net.ipv4.ip_forward" = true;
     "net.ipv6.ip_forward" = true;
@@ -93,43 +95,20 @@ in
   # Add Flakes
   nix.settings.experimental-features = ["nix-command" "flakes"];
 
-  networking.wireless.enable = false;  # Enables wireless support via wpa_supplicant.
 
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
   # Enable networking
 
   networking = {
     hostName = "powerhouse"; # Define your hostname.
-    #useNetworkd = true;  # Use networkd for managing network interfaces
+    nftables.enable = true; # mandatory for incus in NixOS 
+    wireless.enable = false;  # Enables wireless support via wpa_supplicant.
     useDHCP = false;     # Disable dhcpcd to avoid conflicts
-    # dhcpcd.enable = false;
-    networkmanager = {
-    enable = false;
-    };
+    networkmanager.enable = true;
     interfaces.eno1.useDHCP = true;
     interfaces.br0.useDHCP = true;
-    bridges = {
-      "br0" = {
-        interfaces = [ "eno1" ];
-      };
-    };
-    firewall = {
-      enable = true;
-      allowedTCPPorts = [ 80 443 8443 ];
-      allowedUDPPortRanges = [
-        { from = 41641; to = 41641; } #Tailscale
-        { from = 4000; to = 4007; }
-        { from = 8000; to = 8010; }
-      ];
-      trustedInterfaces = [
-   	  	"br0"
-        "tailscale0"
-        "wg0"
-      ];
-    };
-
+    bridges."br0".interfaces = ["eno1"];
+    nameservers = [ "192.168.2.3" ];
+    firewall.enable = false;
     extraHosts = 
       ''
         192.168.2.120 miniserver
@@ -141,35 +120,18 @@ in
         192.168.2.1 router
         139.177.202.138 freeswitch
     '';
-  #   bridges.br0.interfaces = [ "eno1" ];
-  #   interfaces.br0.ipv4.addresses = [
-  #       {
-  #         # choose your local fixed address 'xxx' :
-  #         address = "192.168.2.121";
-  #         prefixLength = 24;
-  #       }
-  #     ];
-  #   defaultGateway.address = "192.168.2.1";
-  #   nameservers = [ "192.168.2.3" ];
-  #   firewall.enable = false;
-  #   firewall.trustedInterfaces = [
-  # 	  	"br0"
-  #   ];
   };
+
   fileSystems."/media/incus" = {
     device = "/dev/sda1";
     fsType = "btrfs";
     # options = [ "x-systemd.after=network-online.target" "x-systemd.mount-timeout=30" ];
-    # options = [ "x-systemd.automount" "x-systemd.after=network-online.target" "x-systemd.mount-timeout=10" ];
-    options = [
-      "x-systemd.after=network-online.target"
-      "x-systemd.mount-timeout=10"
-    ];
+    options = [ "x-systemd.automount" "x-systemd.after=network-online.target" "x-systemd.mount-timeout=10" ];
+    # options = [
+    #   "x-systemd.after=network-online.target"
+    #   "x-systemd.mount-timeout=10"
+    # ];
   };
-  #systemd.network.networks."40-br0".gateway = [ "192.168.2.1" ];
-  #systemd.network.networks."40-br0".nameservers = [ "192.168.2.3" ];
-
-  #systemd.network.networks."40-"
   # Set your time zone.
   time.timeZone = "America/New_York";
 
@@ -292,9 +254,9 @@ in
     enable = true;
     ipv4 = true;
     ipv6 = false;
-    #domainName = "mylocal";
+    domainName = "mylocal";
     #wideArea = false;
-    nssmdns4 = true;
+    nssmdns4 = false;
     nssmdns6 = false;
     publish = {
     enable = true;
@@ -348,16 +310,16 @@ in
   programs.firefox = {
     enable = true;
     languagePacks = [ "he" ];
-    nativeMessagingHosts.packages = [ 
+    # nativeMessagingHosts.packages = [ 
       # pkgs.plasma-browser-integration 
       # pkgs.ff2mpv 
-    ];
-    autoConfig = ''
-      // Add your custom CSS here
-      *|*:any-link {
-        text-decoration: none !important;
-      }
-    '';
+    # ];
+    # autoConfig = ''
+    #   // Add your custom CSS here
+    #   *|*:any-link {
+    #     text-decoration: none !important;
+    #   }
+    # '';
   };
   ######################
   #                    #
@@ -407,6 +369,7 @@ in
       vi="nvim";
       npm="yarn";
       sudo="sudo ";
+      reboot="sudo systemctl reboot";
       ls="ls --color=tty";
       l="ls -alh --color=tty";
         getPiaPort="journalctl -u pia-vpn-portforward.service -n 10";
@@ -424,12 +387,18 @@ in
     QT_PLUGIN_PATH = "${pkgs.qt6.qtwayland}/lib/qt6/plugins";
   };
 
+  environment.etc."yarn/config".text = ''
+    prefix=/home/kixadmin/.config/yarn
+  '';
+
+
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
 
   environment.systemPackages = with pkgs; [
    # neovim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+    vscode
     nodePackages_latest.nodejs # Recent version of NodeJS
     corepack_latest #Corepack for NodeJS
     gparted
@@ -531,7 +500,6 @@ programs.traceroute.enable = true;
 
  # incus !
   
-  networking.nftables.enable = true; # mandatory for incus in NixOS 
   security.apparmor.packages = [ "incusd" ]; #enable AppArmor just for incus. It apparently is requesting it.
   virtualisation.incus = {
     enable = true;
@@ -621,11 +589,12 @@ programs.traceroute.enable = true;
     description = "Run cleanup of Neovim undo files daily";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      onCalendar = "daily";
-      persistent = true;
+      OnCalendar = "*-*-* 06:00:00";
+      Persistent = true;
+      Unit = "cleanupUndoFiles.service";
     };
   };
-
+  #
   #
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
